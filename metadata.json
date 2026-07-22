@@ -1,6 +1,6 @@
 {
-  "id": "CLASSICSOLITAIRE",
-  "name": "Classic Solitaire",
+  "id": "SOLITAIRE",
+  "name": "Solitaire",
   "author": "@Theeohn",
   "version": "1.0.0",
   "description": "One of the most famous single-player card games, now playable on the Pip-Boy!",
@@ -8,6 +8,6 @@
   "previews": [],
   "type": "game",
   "readme": "README.md",
-  "storage": [{ "name": "HOLO/CLASSIC_SOLITAIRE/APP.JS", "url": "app.min.js" }],
+  "storage": [{ "name": "HOLO/SOLITAIRE/APP.JS", "url": "app.min.js" }],
   "storageOptional": []
 }
