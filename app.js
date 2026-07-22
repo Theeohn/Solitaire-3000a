@@ -11,10 +11,10 @@
     STOCK_X: 18,
     WASTE_X: 84,
     FOUND_X: 228,
-    ROW1_Y: 34,
+    ROW1_Y: 19,
     FOUND_SPACING: 60,
     TAB_X: 18,
-    TAB_Y: 108,
+    TAB_Y: 89,
     TAB_SPACING: 66,
     FD_OFF: 5,
     FU_OFF: 14,
@@ -473,19 +473,25 @@
   }
 
   function drawHint() {
-    // Always clear the hint text's own row first - drawString() does not
-    // erase its background, so redrawing new text directly over old text
-    // (which can be a different length/shape) leaves stray glyph pixels
-    // showing through. This was the real cause of the garbled hint text:
-    // a full drawAll() incidentally covered this via its whole-screen
-    // h.clear(1), but a targeted per-pile redraw never touched this row
-    // at all, so old and new hint text kept compositing together on every
-    // single knob turn.
-    h.setColor(3).setFontMonofonto14().setFontAlign(0, 0).drawString(hintText(), 240, 308);
+    // The box fill below covers the old text every time (drawString()
+    // itself never erases its background), so no separate clear step is
+    // needed here - sizing the box from stringWidth() means it always
+    // fully contains whatever text is drawn on top of it, regardless of
+    // how the previous frame's text compared in length.
+    let text = hintText();
+    h.setFontMonofonto14();
+    let tw = h.stringWidth(text);
+    let x1 = 240 - tw / 2 - 8, x2 = 240 + tw / 2 + 8, y1 = 295, y2 = 317;
+    h.setColor(0).fillRect(x1, y1, x2, y2);
+    h.setColor(2);
+    h.drawRect(x1, y1, x2, y2);
+    h.drawRect(x1 + 1, y1 + 1, x2 - 1, y2 - 1);
+    h.setColor(3).setFontAlign(0, 0).drawString(text, 240, 308);
   }
 
   function drawPlayScreen() {
-    h.setColor(2).setFontMonofonto14().setFontAlign(-1, -1).drawString('DECK: ' + stock.length, C.STOCK_X, C.ROW1_Y - 16);
+    h.setColor(2).setFontMonofonto16().setFontAlign(-1, 0)
+      .drawString('DECK: ' + stock.length, C.WASTE_X + C.CARD_W + 6, C.ROW1_Y + C.CARD_H / 2);
     drawStock();
     drawWaste();
     drawFoundations();
