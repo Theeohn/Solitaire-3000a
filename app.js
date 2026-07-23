@@ -21,25 +21,30 @@
   };
   const STATES = { TITLE: 0, PLAY: 1, WIN: 2 };
   const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-  // Screen slot (0-3, left to right among the four Foundation piles) -> suit
-  // index (0=Clubs, 1=Diamonds, 2=Hearts, 3=Spades). Matches the reference
-  // layout: Hearts, Clubs, Diamonds, Spades.
   const FOUND_SLOT_SUIT = [2, 0, 1, 3];
-  // Vertical cursor movement toggles between the top row (6 slots: Stock,
-  // Waste, 4 Foundations) and the Tableau row (7 columns), landing on the
-  // nearest column by screen position rather than by index.
   const TOP_TO_TAB = [0, 1, 3, 4, 5, 6];
   const TAB_TO_TOP = [0, 1, 1, 2, 3, 4, 5];
 
-  // Pile index scheme used for cursorPile / held.from throughout:
-  // 0 = Stock, 1 = Waste, 2-5 = Foundations (screen slots 0-3),
-  // 6-12 = Tableau columns 0-6.
+const DECK_OPTS = [
+    { name: "Random Deck", file: null },
+    { name: "13 Stars", file: "13.JSON" },
+    { name: "Atomic Wrangler", file: "ATOMIC.JSON" },
+    { name: "Bison Steve", file: "BISON.JSON" },
+    { name: "Gomorrah", file: "GOMORRAH.JSON" },
+    { name: "Lucky 38", file: "LUCKY.JSON" },
+    { name: "Mr. Pebbles", file: "PEBBLES.JSON" },
+    { name: "Sierra Madre", file: "SIERRA.JSON" },
+    { name: "Silver Rush", file: "SILVER.JSON" },
+    { name: "The Tops", file: "TOPS.JSON" },
+    { name: "Ultra Luxe", file: "ULTRA.JSON" },
+    { name: "Vault Boy", file: "VAULTB.JSON" },
+    { name: "Wild Wasteland", file: "WILD.JSON" }
+  ];
 
   let tableau, tabDown, stock, waste, foundations, held, cursorPile, grabDepth;
   let gameState, redrawInterval, winInterval, winQueue, winIdx, bouncer;
-
-  // --- Deck & cards ---
-  // Cards are ints 0-51: rank = c % 13 (0=A..12=K), suit = (c/13)|0.
+  let deckIdx = 0;
+  let loadedDeckImg = null;
 
   function buildDeck() {
     let d = [];
@@ -53,10 +58,8 @@
 
   function rankIdx(c) { return c % 13; }
   function suitIdx(c) { return (c / 13) | 0; }
-  function rank1(c) { return rankIdx(c) + 1; } // Ace=1 .. King=13 (low Ace, for Foundations/Tableau order)
+  function rank1(c) { return rankIdx(c) + 1; }
   function isRed(c) { let s = suitIdx(c); return s === 1 || s === 2; }
-
-  // --- Solitaire game logic ---
 
   function initGame() {
     tableau = [[], [], [], [], [], [], []];
@@ -70,8 +73,37 @@
     gameState = STATES.TITLE;
   }
 
-  // Deals a fresh game: seven Tableau columns of 1-7 cards (last card of
-  // each face up, the rest face down), remaining 24 cards form the Stock.
+ function loadSelectedDeck() {
+    let chosenIdx = deckIdx;
+    if (chosenIdx === 0) {
+      chosenIdx = Math.randInt(13) + 1;
+    }
+    let filename = DECK_OPTS[chosenIdx].file;
+    try {
+      const fs = require('fs');
+      const data = JSON.parse(fs.readFileSync('HOLO/SOLITAIRE/' + filename));
+      const image = {
+        bpp: data.bpp,
+        buffer: E.toArrayBuffer(atob(data.buffer)),
+        height: data.height,
+        width: data.width,
+      };
+      if (data.transparent >= 0) {
+        image.transparent = data.transparent;
+      }
+      if (data.palette) {
+        image.palette = new Uint16Array(data.palette.length);
+        for (let i = 0; i < data.palette.length; i++) {
+          const color = data.palette[i] / 255;
+          image.palette[i] = h.toColor(color, color, color);
+        }
+      }
+      loadedDeckImg = image;
+    } catch (e) {
+      loadedDeckImg = null;
+    }
+  }
+
   function dealGame() {
     let d = buildDeck();
     tableau = [[], [], [], [], [], [], []];
@@ -94,8 +126,6 @@
     dealGame();
   }
 
-  // Draw one card at a time from the Stock to the Waste; once the Stock is
-  // exhausted, reshuffle the Waste back into a new Stock.
   function drawFromStock() {
     if (stock.length) waste.push(stock.pop());
     else if (waste.length) { stock = waste.reverse(); waste = []; }
@@ -146,8 +176,6 @@
     }
   }
 
-  // Foundation rule: next rank up, same suit. Tableau rule: one rank down,
-  // opposite color; only a King (or a run starting with one) onto a space.
   function tryPlace(p) {
     let cards = sourceCards(held.from, held.count);
     let ok = false;
@@ -170,14 +198,11 @@
     if (foundations[0] === 13 && foundations[1] === 13 && foundations[2] === 13 && foundations[3] === 13) enterWin();
   }
 
-  // Left/right among the piles of whichever row the cursor is currently on.
   function moveHoriz(dir) {
     cursorPile = cursorPile < 6 ? (cursorPile + dir + 6) % 6 : 6 + ((cursorPile - 6 + dir + 7) % 7);
     grabDepth = 1;
   }
 
-  // Up/down between the top row and the Tableau row, landing on the
-  // nearest aligned column (see TOP_TO_TAB / TAB_TO_TOP).
   function moveVert() {
     cursorPile = cursorPile < 6 ? 6 + TOP_TO_TAB[cursorPile] : TAB_TO_TOP[cursorPile - 6];
     grabDepth = 1;
@@ -189,11 +214,6 @@
     grabDepth = E.clip(grabDepth + dir, 1, up);
   }
 
-  // Knob1 dispatch: "up" (dir<0) always leaves the Tableau row for the row
-  // above, no matter what. Resting on a Tableau column with nothing held,
-  // "down" (dir>0) instead digs deeper into the stack first, as long as
-  // there's room to grab more cards; once there's no more room, "down"
-  // also falls back to row navigation, so the knob can never get stuck.
   function verticalMove(dir) {
     if (cursorPile >= 6 && held === null) {
       let i = cursorPile - 6, up = tableau[i].length - tabDown[i];
@@ -204,7 +224,13 @@
   }
 
   function pressAction() {
-    if (gameState === STATES.TITLE) { dealGame(); Pip.playSound('TAB'); drawAll(); return; }
+    if (gameState === STATES.TITLE) { 
+      loadSelectedDeck();
+      dealGame(); 
+      Pip.playSound('TAB'); 
+      drawAll(); 
+      return; 
+    }
     if (gameState === STATES.WIN) { restartGame(); Pip.playSound('TAB'); drawAll(); return; }
     if (cursorPile === 0) {
       if (held) held = null; else drawFromStock();
@@ -218,12 +244,6 @@
     Pip.playSound('TAB');
     if (gameState !== STATES.WIN) drawAll();
   }
-
-  // --- Win animation ---
-  // Once every Foundation is complete, cards pop off the Foundations one at
-  // a time and bounce around the screen like the classic Windows Solitaire
-  // victory animation. Nothing is ever cleared while this plays, so each
-  // card's bounce path stays on screen and the next card bounces over it.
 
   function buildWinQueue() {
     let f = [foundations[0], foundations[1], foundations[2], foundations[3]];
@@ -259,12 +279,12 @@
         card: card,
         x: C.FOUND_X + slot * C.FOUND_SPACING + C.CARD_W / 2,
         y: C.ROW1_Y + C.CARD_H / 2,
-        vx: (Math.randInt(7) - 3) || 2,
-        vy: -2 - Math.randInt(3),
+        vx: ((Math.randInt(7) - 3) || 2) * 2,
+        vy: (-2 - Math.randInt(3)) * 2,       
         b: 0,
       };
     }
-    bouncer.vy += 0.6;
+    bouncer.vy += 2.4;
     bouncer.x += bouncer.vx;
     bouncer.y += bouncer.vy;
     if (bouncer.y + C.CARD_H / 2 > 320) { bouncer.y = 320 - C.CARD_H / 2; bouncer.vy = -bouncer.vy * 0.7; bouncer.b++; }
@@ -277,9 +297,6 @@
     if (bouncer.b >= 5) bouncer = null;
   }
 
-  // --- Drawing ---
-
-  // Suit vector art - each built from filled/unfilled circles + a polygon point/stem.
   function drawHeart(cx, cy, r, outline) {
     if (outline) {
       h.drawCircle(cx - r * 0.5, cy - r * 0.3, r * 0.5);
@@ -328,8 +345,6 @@
     }
   }
 
-  // Dispatches to the vector art above by suit index (0=C,1=D,2=H,3=S).
-  // Deliberately an if/else chain rather than an array of functions.
   function drawSuitIcon(s, cx, cy, r, outline) {
     if (s === 0) drawClub(cx, cy, r, outline);
     else if (s === 1) drawDiamond(cx, cy, r, outline);
@@ -337,75 +352,72 @@
     else drawSpade(cx, cy, r, outline);
   }
 
-  // Card back: setColor(1) fill stands in for the example art's red, and
-  // setColor(2) squares stand in for the example art's white lattice.
-  // Now supports exposedH to skip rendering hidden areas of cascaded cards.
   function drawCardBack(x, y, exposedH) {
     let h2 = exposedH || C.CARD_H;
     
-    // Only draw the visible background slice and its border
-    h.setColor(1).fillRect(x, y, x + C.CARD_W, y + h2);
-    h.setColor(0).drawRect(x, y, x + C.CARD_W, y + h2);
-    
-    h.setColor(2);
-    for (let r = 0; r < 4; r++) {
-      let py = y + 7 + r * 13;
-      // If this row of the lattice starts below our exposed slice, skip the rest!
-      if (py >= y + h2) break; 
+    if (loadedDeckImg) {
+      h.setClipRect(x, y, x + C.CARD_W, y + h2 - 1);
+      h.drawImage(loadedDeckImg, x, y);
+      h.setClipRect(0, 0, 479, 319);
+      h.setColor(0).drawRect(x, y, x + C.CARD_W, y + C.CARD_H);
+    } else {
+      h.setColor(1).fillRect(x, y, x + C.CARD_W, y + h2);
+      h.setColor(0).drawRect(x, y, x + C.CARD_W, y + h2);
       
-      for (let c = 0; c < 3; c++) {
-        let px = x + 7 + c * 11;
-        // Dynamically shrink the square if it's partially cut off
-        let squareH = Math.min(5, y + h2 - py);
-        if (squareH > 0) h.fillRect(px, py, px + 5, py + squareH);
+      h.setColor(2);
+      for (let r = 0; r < 4; r++) {
+        let py = y + 7 + r * 13;
+        if (py >= y + h2) break; 
+        
+        for (let c = 0; c < 3; c++) {
+          let px = x + 7 + c * 11;
+          let squareH = Math.min(5, y + h2 - py);
+          if (squareH > 0) h.fillRect(px, py, px + 5, py + squareH);
+        }
       }
     }
   }
 
-  // Card front. The frontmost/topmost card of a pile (big=true) is shown
-  // "in full": a larger rank in the corner, plus the big center suit icon.
-  // Cascaded cards further back in a Tableau column (big=false) keep the
-  // rank at its previous size, but now also get a small vector suit icon
-  // in the top-right corner so they're identifiable at a glance without
-  // needing to be the frontmost card.
-  // Now supports exposedH to clip unnecessary background rendering.
   function drawCardFace(card, x, y, big, exposedH) {
     let h2 = exposedH || C.CARD_H;
     let s = suitIdx(card), col = (s === 1 || s === 2) ? 1 : 0;
     
-    // Only draw the visible white background slice and its border
-    h.setColor(2).fillRect(x, y, x + C.CARD_W, y + h2);
+    h.setColor(3).fillRect(x, y, x + C.CARD_W, y + h2);
     h.setColor(0).drawRect(x, y, x + C.CARD_W, y + h2);
     h.setColor(col).setFontAlign(-1, -1);
     
     if (big) {
       h.setFontMonofonto18();
       h.drawString(RANKS[rankIdx(card)], x + 3, y + 3);
-      // Big center icon: only drawn once per pile (the frontmost card),
-      // not once per card, so its cost doesn't scale with pile depth.
       drawSuitIcon(s, x + C.CARD_W / 2, y + C.CARD_H / 2 + 4, 13);
     } else {
       h.setFontMonofonto14();
       h.drawString(RANKS[rankIdx(card)], x + 3, y + 3);
-      // Small top-right corner icon for cascaded cards. Kept tight to the
-      // top of the card so it clears the tightened FU_OFF cascade spacing
-      // without its bottom edge getting covered by the next peeking card.
       drawSuitIcon(s, x + C.CARD_W - 8, y + 8, 5);
     }
   }
 
   function drawEmptySlot(x, y) {
     h.setColor(2).drawRect(x, y, x + C.CARD_W, y + C.CARD_H);
+    if (x === C.STOCK_X && y === C.ROW1_Y && stock.length === 0 && waste.length > 0) {
+      let cx = x + C.CARD_W / 2, cy = y + C.CARD_H / 2;
+      h.setColor(3);
+      
+      let sz = 10;
+      h.drawRect(cx - sz, cy - sz, cx + sz, cy + sz);
+
+      h.drawLine(cx - 4, cy - sz, cx, cy - sz - 4);
+      h.drawLine(cx, cy - sz - 4, cx + 4, cy - sz);
+      h.drawLine(cx - 4, cy - sz - 1, cx, cy - sz - 5);
+      h.drawLine(cx, cy - sz - 5, cx + 4, cy - sz - 1);
+
+      h.drawLine(cx - 4, cy + sz, cx, cy + sz + 4);
+      h.drawLine(cx, cy + sz + 4, cx + 4, cy + sz);
+      h.drawLine(cx - 4, cy + sz + 1, cx, cy + sz + 5);
+      h.drawLine(cx, cy + sz + 5, cx + 4, cy + sz + 1);
+    }
   }
 
-  // Adaptive vertical layout for a Tableau column: consecutive face-down
-  // cards peek by FD_OFF, and so does the transition from the face-down
-  // block into the first face-up card on top of it, so the whole
-  // face-down stack plus that first face-up card sit at one consistent,
-  // tight spacing. Only face-up-to-face-up gaps (the actual cascade a
-  // player reads suit/rank runs from) use the wider FU_OFF. Scaled down
-  // together if the column would otherwise run off the bottom of the
-  // screen.
   function layoutColumn(i) {
     let n = tableau[i].length, ys = [C.TAB_Y];
     let avail = 320 - 16 - C.TAB_Y - C.CARD_H;
@@ -420,8 +432,6 @@
     return ys;
   }
 
-  // Bounding box for pile p, considering `depth` cards grabbed together as
-  // a unit (only meaningful for Tableau piles; ignored elsewhere).
   function topBox(p, depth) {
     if (p === 0) return [C.STOCK_X, C.ROW1_Y, C.STOCK_X + C.CARD_W, C.ROW1_Y + C.CARD_H];
     if (p === 1) return [C.WASTE_X, C.ROW1_Y, C.WASTE_X + C.CARD_W, C.ROW1_Y + C.CARD_H];
@@ -460,22 +470,23 @@
     if (cursorPile >= 6 && grabDepth > 1) return 'Press: Pick Up ' + grabDepth;
     if (cursorPile >= 6) {
       let i = cursorPile - 6, up = tableau[i].length - tabDown[i];
-      // Only surface the "scroll down to grab a run" hint when there's
-      // actually more than one face-up card to dig into - otherwise it's
-      // just noise on a pile where digging deeper isn't possible anyway.
       if (up > 1) return 'Press: Pick Up   Scroll Down: Stack';
     }
     return 'Press: Pick Up';
   }
 
   function drawTitleScreen() {
-    h.setColor(2);
-    drawSpade(65, 85, 25);
-    drawHeart(415, 85, 25);
-    drawDiamond(65, 235, 25);
-    drawClub(415, 235, 25);
-    h.setColor(3).setFontMonofonto36().setFontAlign(0, 0).drawString('SOLITAIRE', 240, 120);
-    h.setColor(2).setFontMonofonto18().setFontAlign(0, 0).drawString('Press the left wheel to play!', 240, 185);
+    drawCardFace(Math.randInt(52), 45, 55, true);
+    drawCardFace(Math.randInt(52), 395, 55, true);
+    drawCardFace(Math.randInt(52), 45, 205, true);
+    drawCardFace(Math.randInt(52), 395, 205, true);
+
+    h.setColor(3).setFontMonofonto36().setFontAlign(0, 0).drawString('SOLITAIRE', 240, 84);
+    h.setColor(2).setFontMonofonto18().setFontAlign(0, 0).drawString('Select a deck, then', 240, 150)
+    h.setColor(2).setFontMonofonto18().setFontAlign(0, 0).drawString('press the left wheel to play!', 240, 173);
+
+    let txt = "<  " + DECK_OPTS[deckIdx].name + "  >";
+    h.setColor(3).setFontMonofonto18().drawString(txt, 240, 238);
   }
 
   function drawStock() {
@@ -493,7 +504,6 @@
     if (foundations[suit] > 0) {
       drawCardFace(suit * 13 + (foundations[suit] - 1), x, C.ROW1_Y, true);
     } else {
-      // Draw unfilled slot with an unfilled suit icon
       h.setColor(2).drawRect(x, C.ROW1_Y, x + C.CARD_W, C.ROW1_Y + C.CARD_H);
       drawSuitIcon(suit, x + C.CARD_W / 2, C.ROW1_Y + C.CARD_H / 2, 13, true);
     }
@@ -510,7 +520,6 @@
     let ys = layoutColumn(i);
     for (let k = 0; k < n; k++) {
       let isLast = (k === n - 1);
-      // Determine exactly how many pixels of this card are visible
       let exposedH = isLast ? C.CARD_H : (ys[k + 1] - ys[k]);
       
       if (k < tabDown[i]) {
@@ -526,11 +535,6 @@
   }
 
   function drawHint() {
-    // The box fill below covers the old text every time (drawString()
-    // itself never erases its background), so no separate clear step is
-    // needed here - sizing the box from stringWidth() means it always
-    // fully contains whatever text is drawn on top of it, regardless of
-    // how the previous frame's text compared in length.
     let text = hintText();
     h.setFontMonofonto14();
     let tw = h.stringWidth(text);
@@ -553,9 +557,6 @@
     drawHint();
   }
 
-
-  // 3px outline (three nested rects) in color3, color0 fill, color3 text -
-  // drawn fresh on top of every animation frame so it always stays visible.
   function drawWinBox() {
     h.setFontMonofonto36();
     let tw1 = h.stringWidth('YOU WIN!!!');
@@ -563,7 +564,6 @@
     let tw2 = h.stringWidth('Press left wheel to play again!');
     let tw = Math.max(tw1, tw2);
     
-    // Expanded downward (y2 is now 220) and shifted slightly up to balance the extra text
     let x1 = 240 - tw / 2 - 20, x2 = 240 + tw / 2 + 20, y1 = 110, y2 = 220;
     
     h.setColor(0).fillRect(x1, y1, x2, y2);
@@ -572,17 +572,11 @@
     h.drawRect(x1 + 1, y1 + 1, x2 - 1, y2 - 1);
     h.drawRect(x1 + 2, y1 + 2, x2 - 2, y2 - 2);
     
-    // Draw the main title
     h.setFontMonofonto36().setFontAlign(0, 0).drawString('YOU WIN!!!', 240, 145);
-    // Draw the new subtext in color 2
     h.setColor(2).setFontMonofonto18().drawString('Press left wheel to play again!', 240, 190);
   }
 
   function drawAll() { "ram";
-    // Defensive: make sure no partial-blit region is left set from any
-    // other code path before flipping (nothing in this file sets
-    // Pip.blitOptions.y1/y2 anymore, but this keeps drawAll() a guaranteed
-    // full-screen flip regardless).
     delete Pip.blitOptions.y1;
     delete Pip.blitOptions.y2;
     h.clear(1);
@@ -593,37 +587,20 @@
     Pip.lastFlip = getTime();
   }
 
-  // Slow safety-net redraw, skipped during the win animation so it never
-  // clears the bounce trail the animation is deliberately leaving behind.
   function periodicRedraw() {
     if (gameState === STATES.WIN) return;
     if (getTime() - Pip.lastFlip < 0.75) return;
     drawAll();
   }
 
-  // --- Input ---
-  // Title screen: press either wheel to deal a new game.
-  // Play: knob1 (up/down) moves the cursor between the top row (Stock,
-  // Waste, Foundations) and the Tableau row, landing on the nearest column.
-  // "Up" always returns to the row above. Resting on a Tableau column with
-  // nothing picked up, "down" instead digs deeper into the stack first
-  // (grabs more face-up cards as a group) as long as there's room; once
-  // there's no more room, "down" also returns to the row above. Knob2
-  // (left/right) always moves the cursor between piles within whichever
-  // row it's currently on.
-  // Either knob's press: on the Stock, draws a card to the Waste (or
-  // reshuffles the Waste back into the Stock once the Stock is empty);
-  // with nothing picked up, picks up the selected card(s) from the Waste,
-  // a Foundation, or a Tableau column; pressing again on that same pile
-  // cancels the pick-up; pressing on a different pile attempts to place
-  // the held card(s) there, following normal Foundation/Tableau rules.
-  // Win: press either wheel to deal a fresh game.
-
-  // Knob1 = up/down: switches between the top row and the Tableau row, or
-  // (resting on a Tableau pile with nothing held) adjusts how many face-up
-  // cards are grabbed together, since that's a vertical reach into the pile.
   function onKnob1(dir) { "ram";
     if (dir) {
+      if (gameState === STATES.TITLE) {
+        deckIdx = (deckIdx + dir + DECK_OPTS.length) % DECK_OPTS.length;
+        Pip.playSound('SCROLL');
+        drawAll();
+        return;
+      }
       if (gameState === STATES.PLAY) {
         verticalMove(dir);
         Pip.playSound('SCROLL');
@@ -634,10 +611,14 @@
     pressAction();
   }
 
-  // Knob2 = left/right: always moves the cursor between piles in whichever
-  // row it's currently on.
   function onKnob2(dir) { "ram";
     if (dir) {
+      if (gameState === STATES.TITLE) {
+        deckIdx = (deckIdx + dir + DECK_OPTS.length) % DECK_OPTS.length;
+        Pip.playSound('SCROLL');
+        drawAll();
+        return;
+      }
       if (gameState === STATES.PLAY) {
         moveHoriz(dir);
         Pip.playSound('SCROLL');
@@ -647,8 +628,6 @@
     }
     pressAction();
   }
-
-  // --- Lifecycle ---
 
   function start() {
     h.clear();
