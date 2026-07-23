@@ -279,50 +279,85 @@
 
   // --- Drawing ---
 
-  // Suit vector art - each built from filled circles + a polygon point/stem.
-  function drawHeart(cx, cy, r) {
-    h.fillCircle(cx - r * 0.5, cy - r * 0.3, r * 0.5);
-    h.fillCircle(cx + r * 0.5, cy - r * 0.3, r * 0.5);
-    h.fillPoly([cx - r, cy - r * 0.1, cx + r, cy - r * 0.1, cx, cy + r]);
+  // Suit vector art - each built from filled/unfilled circles + a polygon point/stem.
+  function drawHeart(cx, cy, r, outline) {
+    if (outline) {
+      h.drawCircle(cx - r * 0.5, cy - r * 0.3, r * 0.5);
+      h.drawCircle(cx + r * 0.5, cy - r * 0.3, r * 0.5);
+      h.drawPoly([cx - r, cy - r * 0.1, cx + r, cy - r * 0.1, cx, cy + r], true);
+    } else {
+      h.fillCircle(cx - r * 0.5, cy - r * 0.3, r * 0.5);
+      h.fillCircle(cx + r * 0.5, cy - r * 0.3, r * 0.5);
+      h.fillPoly([cx - r, cy - r * 0.1, cx + r, cy - r * 0.1, cx, cy + r]);
+    }
   }
 
-  function drawSpade(cx, cy, r) {
-    h.fillCircle(cx - r * 0.5, cy + r * 0.3, r * 0.5);
-    h.fillCircle(cx + r * 0.5, cy + r * 0.3, r * 0.5);
-    h.fillPoly([cx - r, cy + r * 0.1, cx + r, cy + r * 0.1, cx, cy - r]);
-    h.fillPoly([cx - r * 0.3, cy + r * 0.3, cx + r * 0.3, cy + r * 0.3, cx, cy + r * 1.15]);
+  function drawSpade(cx, cy, r, outline) {
+    if (outline) {
+      h.drawCircle(cx - r * 0.5, cy + r * 0.3, r * 0.5);
+      h.drawCircle(cx + r * 0.5, cy + r * 0.3, r * 0.5);
+      h.drawPoly([cx - r, cy + r * 0.1, cx + r, cy + r * 0.1, cx, cy - r], true);
+      h.drawPoly([cx - r * 0.3, cy + r * 0.3, cx + r * 0.3, cy + r * 0.3, cx, cy + r * 1.15], true);
+    } else {
+      h.fillCircle(cx - r * 0.5, cy + r * 0.3, r * 0.5);
+      h.fillCircle(cx + r * 0.5, cy + r * 0.3, r * 0.5);
+      h.fillPoly([cx - r, cy + r * 0.1, cx + r, cy + r * 0.1, cx, cy - r]);
+      h.fillPoly([cx - r * 0.3, cy + r * 0.3, cx + r * 0.3, cy + r * 0.3, cx, cy + r * 1.15]);
+    }
   }
 
-  function drawDiamond(cx, cy, r) {
-    h.fillPoly([cx, cy - r, cx + r * 0.65, cy, cx, cy + r, cx - r * 0.65, cy]);
+  function drawDiamond(cx, cy, r, outline) {
+    if (outline) {
+      h.drawPoly([cx, cy - r, cx + r * 0.65, cy, cx, cy + r, cx - r * 0.65, cy], true);
+    } else {
+      h.fillPoly([cx, cy - r, cx + r * 0.65, cy, cx, cy + r, cx - r * 0.65, cy]);
+    }
   }
 
-  function drawClub(cx, cy, r) {
-    h.fillCircle(cx, cy - r * 0.45, r * 0.5);
-    h.fillCircle(cx - r * 0.45, cy + r * 0.15, r * 0.5);
-    h.fillCircle(cx + r * 0.45, cy + r * 0.15, r * 0.5);
-    h.fillPoly([cx - r * 0.3, cy + r * 0.15, cx + r * 0.3, cy + r * 0.15, cx, cy + r * 1.1]);
+  function drawClub(cx, cy, r, outline) {
+    if (outline) {
+      h.drawCircle(cx, cy - r * 0.45, r * 0.5);
+      h.drawCircle(cx - r * 0.45, cy + r * 0.15, r * 0.5);
+      h.drawCircle(cx + r * 0.45, cy + r * 0.15, r * 0.5);
+      h.drawPoly([cx - r * 0.3, cy + r * 0.15, cx + r * 0.3, cy + r * 0.15, cx, cy + r * 1.1], true);
+    } else {
+      h.fillCircle(cx, cy - r * 0.45, r * 0.5);
+      h.fillCircle(cx - r * 0.45, cy + r * 0.15, r * 0.5);
+      h.fillCircle(cx + r * 0.45, cy + r * 0.15, r * 0.5);
+      h.fillPoly([cx - r * 0.3, cy + r * 0.15, cx + r * 0.3, cy + r * 0.15, cx, cy + r * 1.1]);
+    }
   }
 
   // Dispatches to the vector art above by suit index (0=C,1=D,2=H,3=S).
   // Deliberately an if/else chain rather than an array of functions.
-  function drawSuitIcon(s, cx, cy, r) {
-    if (s === 0) drawClub(cx, cy, r);
-    else if (s === 1) drawDiamond(cx, cy, r);
-    else if (s === 2) drawHeart(cx, cy, r);
-    else drawSpade(cx, cy, r);
+  function drawSuitIcon(s, cx, cy, r, outline) {
+    if (s === 0) drawClub(cx, cy, r, outline);
+    else if (s === 1) drawDiamond(cx, cy, r, outline);
+    else if (s === 2) drawHeart(cx, cy, r, outline);
+    else drawSpade(cx, cy, r, outline);
   }
 
   // Card back: setColor(1) fill stands in for the example art's red, and
   // setColor(2) squares stand in for the example art's white lattice.
-  function drawCardBack(x, y) {
-    h.setColor(1).fillRect(x, y, x + C.CARD_W, y + C.CARD_H);
-    h.setColor(0).drawRect(x, y, x + C.CARD_W, y + C.CARD_H);
+  // Now supports exposedH to skip rendering hidden areas of cascaded cards.
+  function drawCardBack(x, y, exposedH) {
+    let h2 = exposedH || C.CARD_H;
+    
+    // Only draw the visible background slice and its border
+    h.setColor(1).fillRect(x, y, x + C.CARD_W, y + h2);
+    h.setColor(0).drawRect(x, y, x + C.CARD_W, y + h2);
+    
     h.setColor(2);
     for (let r = 0; r < 4; r++) {
+      let py = y + 7 + r * 13;
+      // If this row of the lattice starts below our exposed slice, skip the rest!
+      if (py >= y + h2) break; 
+      
       for (let c = 0; c < 3; c++) {
-        let px = x + 7 + c * 11, py = y + 7 + r * 13;
-        h.fillRect(px, py, px + 5, py + 5);
+        let px = x + 7 + c * 11;
+        // Dynamically shrink the square if it's partially cut off
+        let squareH = Math.min(5, y + h2 - py);
+        if (squareH > 0) h.fillRect(px, py, px + 5, py + squareH);
       }
     }
   }
@@ -333,11 +368,16 @@
   // rank at its previous size, but now also get a small vector suit icon
   // in the top-right corner so they're identifiable at a glance without
   // needing to be the frontmost card.
-  function drawCardFace(card, x, y, big) {
+  // Now supports exposedH to clip unnecessary background rendering.
+  function drawCardFace(card, x, y, big, exposedH) {
+    let h2 = exposedH || C.CARD_H;
     let s = suitIdx(card), col = (s === 1 || s === 2) ? 1 : 0;
-    h.setColor(2).fillRect(x, y, x + C.CARD_W, y + C.CARD_H);
-    h.setColor(0).drawRect(x, y, x + C.CARD_W, y + C.CARD_H);
+    
+    // Only draw the visible white background slice and its border
+    h.setColor(2).fillRect(x, y, x + C.CARD_W, y + h2);
+    h.setColor(0).drawRect(x, y, x + C.CARD_W, y + h2);
     h.setColor(col).setFontAlign(-1, -1);
+    
     if (big) {
       h.setFontMonofonto18();
       h.drawString(RANKS[rankIdx(card)], x + 3, y + 3);
@@ -450,8 +490,13 @@
 
   function drawFoundationSlot(j) {
     let x = C.FOUND_X + j * C.FOUND_SPACING, suit = FOUND_SLOT_SUIT[j];
-    if (foundations[suit] > 0) drawCardFace(suit * 13 + (foundations[suit] - 1), x, C.ROW1_Y, true);
-    else h.setColor(1).fillRect(x, C.ROW1_Y, x + C.CARD_W, C.ROW1_Y + C.CARD_H);
+    if (foundations[suit] > 0) {
+      drawCardFace(suit * 13 + (foundations[suit] - 1), x, C.ROW1_Y, true);
+    } else {
+      // Draw unfilled slot with an unfilled suit icon
+      h.setColor(2).drawRect(x, C.ROW1_Y, x + C.CARD_W, C.ROW1_Y + C.CARD_H);
+      drawSuitIcon(suit, x + C.CARD_W / 2, C.ROW1_Y + C.CARD_H / 2, 13, true);
+    }
   }
 
   function drawFoundations() {
@@ -461,10 +506,18 @@
   function drawTableauColumn(i) {
     let col = tableau[i], n = col.length, x = C.TAB_X + i * C.TAB_SPACING;
     if (n === 0) { drawEmptySlot(x, C.TAB_Y); return; }
+    
     let ys = layoutColumn(i);
     for (let k = 0; k < n; k++) {
-      if (k < tabDown[i]) drawCardBack(x, ys[k]);
-      else drawCardFace(col[k], x, ys[k], k === n - 1);
+      let isLast = (k === n - 1);
+      // Determine exactly how many pixels of this card are visible
+      let exposedH = isLast ? C.CARD_H : (ys[k + 1] - ys[k]);
+      
+      if (k < tabDown[i]) {
+        drawCardBack(x, ys[k], exposedH);
+      } else {
+        drawCardFace(col[k], x, ys[k], isLast, exposedH);
+      }
     }
   }
 
@@ -505,14 +558,24 @@
   // drawn fresh on top of every animation frame so it always stays visible.
   function drawWinBox() {
     h.setFontMonofonto36();
-    let tw = h.stringWidth('YOU WIN!!!');
-    let x1 = 240 - tw / 2 - 20, x2 = 240 + tw / 2 + 20, y1 = 120, y2 = 200;
+    let tw1 = h.stringWidth('YOU WIN!!!');
+    h.setFontMonofonto18();
+    let tw2 = h.stringWidth('Press left wheel to play again!');
+    let tw = Math.max(tw1, tw2);
+    
+    // Expanded downward (y2 is now 220) and shifted slightly up to balance the extra text
+    let x1 = 240 - tw / 2 - 20, x2 = 240 + tw / 2 + 20, y1 = 110, y2 = 220;
+    
     h.setColor(0).fillRect(x1, y1, x2, y2);
     h.setColor(3);
     h.drawRect(x1, y1, x2, y2);
     h.drawRect(x1 + 1, y1 + 1, x2 - 1, y2 - 1);
     h.drawRect(x1 + 2, y1 + 2, x2 - 2, y2 - 2);
-    h.setFontAlign(0, 0).drawString('YOU WIN!!!', 240, 160);
+    
+    // Draw the main title
+    h.setFontMonofonto36().setFontAlign(0, 0).drawString('YOU WIN!!!', 240, 145);
+    // Draw the new subtext in color 2
+    h.setColor(2).setFontMonofonto18().drawString('Press left wheel to play again!', 240, 190);
   }
 
   function drawAll() { "ram";
