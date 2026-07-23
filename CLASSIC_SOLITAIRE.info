@@ -1,8 +1,0 @@
-{
-  "id": "CLASSICSOLITAIRE",
-  "name": "Classic Solitare",
-  "version": "1.0.0",
-  "files": "HOLO/CLASSIC_SOLITAIRE/APP.JS",
-  "src": "HOLO/CLASSIC_SOLITAIRE/APP.JS",
-  "icon": "APPINFO/HOLO.IMG"
-}
